@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AppShell from "@/components/AppShell";
+import { dashboardApi } from "@/services/api";
 
 interface DashboardStats {
   totalSuppliers: number;
@@ -15,20 +17,6 @@ interface DashboardStats {
     created_at: string;
   }>;
 }
-
-const MOCK_STATS: DashboardStats = {
-  totalSuppliers: 48,
-  activeAudits: 3,
-  criticalAlerts: 7,
-  avgComplianceScore: 72.5,
-  riskDistribution: { low: 20, medium: 15, high: 10, critical: 3 },
-  recentAlerts: [
-    { id: 1, title: "Expired GOTS certification - TextileCo Shanghai", severity: "critical", created_at: "2026-03-01" },
-    { id: 2, title: "High carbon emissions - DyeWorks Vietnam", severity: "warning", created_at: "2026-03-02" },
-    { id: 3, title: "No ESG data submitted - FabricMill India", severity: "warning", created_at: "2026-03-03" },
-    { id: 4, title: "Missing green certification - SpinTech Bangladesh", severity: "info", created_at: "2026-03-03" },
-  ],
-};
 
 function StatCard({ title, value, subtitle, color }: { title: string; value: string | number; subtitle?: string; color: string }) {
   return (
@@ -54,66 +42,85 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>(MOCK_STATS);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dashboardApi
+      .stats()
+      .then((data) => setStats(data as unknown as DashboardStats))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">ESG supply chain compliance overview</p>
-      </div>
+    <AppShell>
+      <div>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 mt-1">ESG supply chain compliance overview</p>
+        </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Suppliers" value={stats.totalSuppliers} subtitle="Across all tiers" color="text-primary-700" />
-        <StatCard title="Active Audits" value={stats.activeAudits} subtitle="In progress" color="text-blue-600" />
-        <StatCard title="Critical Alerts" value={stats.criticalAlerts} subtitle="Requires attention" color="text-red-600" />
-        <StatCard title="Avg. Compliance" value={`${stats.avgComplianceScore}%`} subtitle="Overall score" color="text-green-600" />
-      </div>
+        {loading ? (
+          <div className="text-gray-400 text-sm py-20 text-center">Loading dashboard data...</div>
+        ) : !stats ? (
+          <div className="text-gray-400 text-sm py-20 text-center">Failed to load data. Please check backend connection.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <StatCard title="Total Suppliers" value={stats.totalSuppliers} subtitle="Across all tiers" color="text-primary-700" />
+              <StatCard title="Active Audits" value={stats.activeAudits} subtitle="In progress" color="text-blue-600" />
+              <StatCard title="Critical Alerts" value={stats.criticalAlerts} subtitle="Requires attention" color="text-red-600" />
+              <StatCard title="Avg. Compliance" value={stats.avgComplianceScore ? `${stats.avgComplianceScore}%` : "N/A"} subtitle="Overall score" color="text-green-600" />
+            </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Risk Distribution */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Distribution</h2>
-          <div className="space-y-3">
-            {Object.entries(stats.riskDistribution).map(([level, count]) => {
-              const total = Object.values(stats.riskDistribution).reduce((a, b) => a + b, 0);
-              const pct = Math.round((count / total) * 100);
-              const barColors: Record<string, string> = {
-                low: "bg-green-500",
-                medium: "bg-amber-500",
-                high: "bg-red-500",
-                critical: "bg-red-800",
-              };
-              return (
-                <div key={level} className="flex items-center gap-3">
-                  <span className="w-16 text-sm text-gray-600 capitalize">{level}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-3">
-                    <div className={`h-3 rounded-full ${barColors[level]}`} style={{ width: `${pct}%` }} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Distribution</h2>
+                {Object.keys(stats.riskDistribution).length === 0 ? (
+                  <p className="text-sm text-gray-400">No supplier data yet. Seed the database first.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.entries(stats.riskDistribution).map(([level, count]) => {
+                      const total = Object.values(stats.riskDistribution).reduce((a, b) => a + b, 0);
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                      const barColors: Record<string, string> = { low: "bg-green-500", medium: "bg-amber-500", high: "bg-red-500", critical: "bg-red-800" };
+                      return (
+                        <div key={level} className="flex items-center gap-3">
+                          <span className="w-16 text-sm text-gray-600 capitalize">{level}</span>
+                          <div className="flex-1 bg-gray-100 rounded-full h-3">
+                            <div className={`h-3 rounded-full ${barColors[level] || "bg-gray-400"}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="w-10 text-sm text-gray-600 text-right">{count}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <span className="w-10 text-sm text-gray-600 text-right">{count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Recent Alerts */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Alerts</h2>
-          <div className="space-y-3">
-            {stats.recentAlerts.map((alert) => (
-              <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-                <SeverityBadge severity={alert.severity} />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-800">{alert.title}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{alert.created_at}</p>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
+
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Alerts</h2>
+                {stats.recentAlerts.length === 0 ? (
+                  <p className="text-sm text-gray-400">No alerts. Run a compliance scan to generate alerts.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {stats.recentAlerts.map((alert) => (
+                      <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                        <SeverityBadge severity={alert.severity} />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800">{alert.title}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{alert.created_at ? new Date(alert.created_at).toLocaleDateString("zh-CN") : ""}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </AppShell>
   );
 }

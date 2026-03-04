@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
 
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/esg_platform"
+    DATABASE_URL: str = "sqlite:///./esg_platform.db"
     REDIS_URL: str = "redis://localhost:6379/0"
 
     SECRET_KEY: str = "dev-secret-key-change-in-production"

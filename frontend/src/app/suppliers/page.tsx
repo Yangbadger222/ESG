@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import AppShell from "@/components/AppShell";
+import { supplierApi } from "@/services/api";
 
 interface Supplier {
   id: number;
@@ -10,17 +12,9 @@ interface Supplier {
   country: string | null;
   city: string | null;
   risk_level: string;
-  certifications: string[];
+  parent_supplier_id: number | null;
+  created_at: string;
 }
-
-const MOCK_SUPPLIERS: Supplier[] = [
-  { id: 1, name: "TextileCo Shanghai", tier: "tier_1", category: "fabric", country: "China", city: "Shanghai", risk_level: "low", certifications: ["GOTS", "ISO 14001"] },
-  { id: 2, name: "DyeWorks Vietnam", tier: "tier_2", category: "dyeing", country: "Vietnam", city: "Ho Chi Minh", risk_level: "high", certifications: [] },
-  { id: 3, name: "SpinTech Bangladesh", tier: "tier_2", category: "spinning", country: "Bangladesh", city: "Dhaka", risk_level: "medium", certifications: ["BSCI"] },
-  { id: 4, name: "FabricMill India", tier: "tier_1", category: "fabric", country: "India", city: "Mumbai", risk_level: "medium", certifications: ["OEKO-TEX"] },
-  { id: 5, name: "EcoFiber Turkey", tier: "tier_3", category: "raw_material", country: "Turkey", city: "Istanbul", risk_level: "low", certifications: ["GRS", "GOTS"] },
-  { id: 6, name: "ChemDye Jiangsu", tier: "tier_2", category: "dyeing", country: "China", city: "Suzhou", risk_level: "critical", certifications: [] },
-];
 
 const tierLabels: Record<string, string> = {
   tier_1: "Tier 1",
@@ -44,108 +38,155 @@ function RiskBadge({ level }: { level: string }) {
 }
 
 export default function SuppliersPage() {
-  const [suppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
-  const [filterTier, setFilterTier] = useState<string>("");
-  const [filterRisk, setFilterRisk] = useState<string>("");
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterTier, setFilterTier] = useState("");
+  const [filterRisk, setFilterRisk] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newTier, setNewTier] = useState("tier_1");
+  const [newCategory, setNewCategory] = useState("");
+  const [newCountry, setNewCountry] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [creating, setCreating] = useState(false);
+  const csvRef = useRef<HTMLInputElement>(null);
 
-  const filtered = suppliers.filter((s) => {
-    if (filterTier && s.tier !== filterTier) return false;
-    if (filterRisk && s.risk_level !== filterRisk) return false;
-    return true;
-  });
+  const fetchSuppliers = () => {
+    const params: Record<string, string> = {};
+    if (filterTier) params.tier = filterTier;
+    if (filterRisk) params.risk_level = filterRisk;
+    setLoading(true);
+    supplierApi
+      .list(Object.keys(params).length > 0 ? params : undefined)
+      .then((data) => setSuppliers(data as unknown as Supplier[]))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchSuppliers(); }, [filterTier, filterRisk]);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      await supplierApi.create({
+        name: newName, tier: newTier,
+        category: newCategory || null, country: newCountry || null, city: newCity || null,
+      });
+      setShowCreateModal(false);
+      setNewName(""); setNewCategory(""); setNewCountry(""); setNewCity("");
+      fetchSuppliers();
+    } catch { /* ignore */ }
+    setCreating(false);
+  };
+
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await supplierApi.importCsv(file);
+      alert(`Successfully imported ${res.imported} suppliers`);
+      fetchSuppliers();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Import failed");
+    }
+    if (csvRef.current) csvRef.current.value = "";
+  };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
-          <p className="text-gray-500 mt-1">Manage your supply chain partners</p>
+    <AppShell>
+      <div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
+            <p className="text-gray-500 mt-1">Manage your supply chain partners</p>
+          </div>
+          <div className="flex gap-3">
+            <input type="file" accept=".csv" ref={csvRef} onChange={handleCsvImport} className="hidden" />
+            <button onClick={() => csvRef.current?.click()} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+              Import CSV
+            </button>
+            <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
+              + Add Supplier
+            </button>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-            Import CSV
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-          >
-            + Add Supplier
-          </button>
+
+        <div className="flex gap-4 mb-6">
+          <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+            <option value="">All Tiers</option>
+            <option value="tier_1">Tier 1</option>
+            <option value="tier_2">Tier 2</option>
+            <option value="tier_3">Tier 3</option>
+            <option value="raw_material">Raw Material</option>
+          </select>
+          <select value={filterRisk} onChange={(e) => setFilterRisk(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+            <option value="">All Risk Levels</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 mb-6">
-        <select
-          value={filterTier}
-          onChange={(e) => setFilterTier(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-        >
-          <option value="">All Tiers</option>
-          <option value="tier_1">Tier 1</option>
-          <option value="tier_2">Tier 2</option>
-          <option value="tier_3">Tier 3</option>
-          <option value="raw_material">Raw Material</option>
-        </select>
-        <select
-          value={filterRisk}
-          onChange={(e) => setFilterRisk(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-        >
-          <option value="">All Risk Levels</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="critical">Critical</option>
-        </select>
-      </div>
+        {loading ? (
+          <div className="text-gray-400 text-sm py-20 text-center">Loading suppliers...</div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Supplier</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Tier</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Location</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Risk</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {suppliers.map((s) => (
+                  <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4"><p className="text-sm font-medium text-gray-900">{s.name}</p></td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{tierLabels[s.tier] || s.tier}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 capitalize">{s.category || "-"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{[s.city, s.country].filter(Boolean).join(", ") || "-"}</td>
+                    <td className="px-6 py-4"><RiskBadge level={s.risk_level} /></td>
+                  </tr>
+                ))}
+                {suppliers.length === 0 && (
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-400">No suppliers found. Seed the database or add a supplier.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Supplier</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Tier</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Location</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Risk</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Certifications</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filtered.map((s) => (
-              <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4">
-                  <p className="text-sm font-medium text-gray-900">{s.name}</p>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">{tierLabels[s.tier]}</td>
-                <td className="px-6 py-4 text-sm text-gray-600 capitalize">{s.category || "-"}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{s.city}, {s.country}</td>
-                <td className="px-6 py-4"><RiskBadge level={s.risk_level} /></td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-1 flex-wrap">
-                    {s.certifications.length > 0 ? (
-                      s.certifications.map((c) => (
-                        <span key={c} className="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">{c}</span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-gray-400">None</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <a href={`/suppliers/${s.id}`} className="text-sm text-primary-600 hover:text-primary-800 font-medium">
-                    View
-                  </a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
+            <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Supplier</h2>
+              <div className="space-y-3">
+                <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Supplier name *" className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+                <select value={newTier} onChange={(e) => setNewTier(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                  <option value="tier_1">Tier 1</option>
+                  <option value="tier_2">Tier 2</option>
+                  <option value="tier_3">Tier 3</option>
+                  <option value="raw_material">Raw Material</option>
+                </select>
+                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category (e.g. fabric, dyeing)" className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+                <input value={newCountry} onChange={(e) => setNewCountry(e.target.value)} placeholder="Country" className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+                <input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="City" className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button onClick={handleCreate} disabled={creating || !newName.trim()} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                  {creating ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </AppShell>
   );
 }

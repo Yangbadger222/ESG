@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -50,7 +50,6 @@ def resolve_alert(
         ComplianceAlert.organization_id == current_user.organization_id,
     ).first()
     if not alert:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Alert not found")
 
     alert.is_resolved = "true"

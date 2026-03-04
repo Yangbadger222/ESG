@@ -40,8 +40,12 @@ def scan_compliance_alerts(db: Session, organization_id: int) -> int:
             })
 
         now = datetime.now(timezone.utc)
+        now_naive = now.replace(tzinfo=None)
         for cert in supplier.certifications:
-            if cert.expiry_date and cert.expiry_date < now:
+            expiry = cert.expiry_date
+            if expiry and expiry.tzinfo is not None:
+                expiry = expiry.replace(tzinfo=None)
+            if expiry and expiry < now_naive:
                 alerts_to_create.append({
                     "alert_type": "expired_certification",
                     "severity": AlertSeverity.CRITICAL,

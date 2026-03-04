@@ -9,6 +9,7 @@ from app.core.database import engine, SessionLocal, Base
 from app.models.user import Organization, User
 from app.models.supplier import Supplier, ESGRecord, Certification, SupplierTier, RiskLevel
 from app.models.audit import ComplianceStandard
+from app.models.compliance import ComplianceAlert  # noqa: F401
 from app.core.security import get_password_hash
 from datetime import datetime, timezone, timedelta
 

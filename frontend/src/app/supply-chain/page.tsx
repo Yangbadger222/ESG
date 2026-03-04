@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
+import AppShell from "@/components/AppShell";
+import { dashboardApi } from "@/services/api";
 
 interface ChainNode {
   id: number;
@@ -12,72 +14,6 @@ interface ChainNode {
   certifications: string[];
   children: ChainNode[];
 }
-
-const MOCK_CHAIN: ChainNode[] = [
-  {
-    id: 1,
-    name: "TextileCo Shanghai",
-    tier: "tier_1",
-    country: "China",
-    city: "Shanghai",
-    risk_level: "low",
-    certifications: ["GOTS", "ISO 14001"],
-    children: [
-      {
-        id: 2,
-        name: "DyeWorks Vietnam",
-        tier: "tier_2",
-        country: "Vietnam",
-        city: "Ho Chi Minh",
-        risk_level: "high",
-        certifications: [],
-        children: [
-          {
-            id: 5,
-            name: "EcoFiber Turkey",
-            tier: "tier_3",
-            country: "Turkey",
-            city: "Istanbul",
-            risk_level: "low",
-            certifications: ["GRS", "GOTS"],
-            children: [],
-          },
-        ],
-      },
-      {
-        id: 3,
-        name: "SpinTech Bangladesh",
-        tier: "tier_2",
-        country: "Bangladesh",
-        city: "Dhaka",
-        risk_level: "medium",
-        certifications: ["BSCI"],
-        children: [],
-      },
-    ],
-  },
-  {
-    id: 4,
-    name: "FabricMill India",
-    tier: "tier_1",
-    country: "India",
-    city: "Mumbai",
-    risk_level: "medium",
-    certifications: ["OEKO-TEX"],
-    children: [
-      {
-        id: 6,
-        name: "ChemDye Jiangsu",
-        tier: "tier_2",
-        country: "China",
-        city: "Suzhou",
-        risk_level: "critical",
-        certifications: [],
-        children: [],
-      },
-    ],
-  },
-];
 
 const riskColors: Record<string, string> = {
   low: "border-green-400 bg-green-50",
@@ -95,12 +31,12 @@ const riskDotColors: Record<string, string> = {
 
 function NodeCard({ node, depth = 0 }: { node: ChainNode; depth?: number }) {
   const [expanded, setExpanded] = useState(true);
-  const hasChildren = node.children.length > 0;
+  const hasChildren = node.children && node.children.length > 0;
 
   return (
     <div className={depth > 0 ? "ml-8 mt-3" : "mt-4"}>
       <div
-        className={`border-l-4 rounded-lg p-4 ${riskColors[node.risk_level]} cursor-pointer hover:shadow-md transition-shadow`}
+        className={`border-l-4 rounded-lg p-4 ${riskColors[node.risk_level] || "border-gray-300 bg-gray-50"} cursor-pointer hover:shadow-md transition-shadow`}
         onClick={() => hasChildren && setExpanded(!expanded)}
       >
         <div className="flex items-start justify-between">
@@ -110,23 +46,20 @@ function NodeCard({ node, depth = 0 }: { node: ChainNode; depth?: number }) {
                 <span className="text-gray-400 text-sm">{expanded ? "▼" : "▶"}</span>
               )}
               <h3 className="font-semibold text-gray-900">{node.name}</h3>
-              <span className={`w-2.5 h-2.5 rounded-full ${riskDotColors[node.risk_level]}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${riskDotColors[node.risk_level] || "bg-gray-400"}`} />
             </div>
             <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
               <span className="uppercase font-medium">{node.tier.replace("_", " ")}</span>
-              <span>{node.city}, {node.country}</span>
+              <span>{[node.city, node.country].filter(Boolean).join(", ")}</span>
             </div>
           </div>
           <div className="flex gap-1 flex-wrap">
-            {node.certifications.map((c) => (
-              <span key={c} className="px-2 py-0.5 bg-white/80 text-green-700 text-xs rounded-full font-medium border border-green-200">
-                {c}
-              </span>
-            ))}
-            {node.certifications.length === 0 && (
-              <span className="px-2 py-0.5 bg-white/80 text-red-600 text-xs rounded-full font-medium border border-red-200">
-                No Cert
-              </span>
+            {node.certifications && node.certifications.length > 0 ? (
+              node.certifications.map((c) => (
+                <span key={c} className="px-2 py-0.5 bg-white/80 text-green-700 text-xs rounded-full font-medium border border-green-200">{c}</span>
+              ))
+            ) : (
+              <span className="px-2 py-0.5 bg-white/80 text-red-600 text-xs rounded-full font-medium border border-red-200">No Cert</span>
             )}
           </div>
         </div>
@@ -144,34 +77,46 @@ function NodeCard({ node, depth = 0 }: { node: ChainNode; depth?: number }) {
 }
 
 export default function SupplyChainPage() {
-  const [chain] = useState<ChainNode[]>(MOCK_CHAIN);
+  const [chain, setChain] = useState<ChainNode[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dashboardApi.supplyChain()
+      .then((data) => setChain(data as unknown as ChainNode[]))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Supply Chain Transparency</h1>
-        <p className="text-gray-500 mt-1">
-          Deep multi-tier supply chain visualization with environmental records and geographic data
-        </p>
-      </div>
+    <AppShell>
+      <div>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Supply Chain Transparency</h1>
+          <p className="text-gray-500 mt-1">Deep multi-tier supply chain visualization with environmental records and geographic data</p>
+        </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-6 mb-6 p-4 bg-white rounded-lg border border-gray-200">
-        <span className="text-sm font-medium text-gray-600">Risk Level:</span>
-        {Object.entries(riskDotColors).map(([level, color]) => (
-          <div key={level} className="flex items-center gap-1.5">
-            <span className={`w-3 h-3 rounded-full ${color}`} />
-            <span className="text-sm text-gray-600 capitalize">{level}</span>
+        <div className="flex items-center gap-6 mb-6 p-4 bg-white rounded-lg border border-gray-200">
+          <span className="text-sm font-medium text-gray-600">Risk Level:</span>
+          {Object.entries(riskDotColors).map(([level, color]) => (
+            <div key={level} className="flex items-center gap-1.5">
+              <span className={`w-3 h-3 rounded-full ${color}`} />
+              <span className="text-sm text-gray-600 capitalize">{level}</span>
+            </div>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="text-gray-400 text-sm py-20 text-center">Loading supply chain...</div>
+        ) : chain.length === 0 ? (
+          <div className="text-gray-400 text-sm py-20 text-center">No supply chain data. Add suppliers with parent relationships to build the chain.</div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            {chain.map((root) => (
+              <NodeCard key={root.id} node={root} />
+            ))}
           </div>
-        ))}
+        )}
       </div>
-
-      {/* Supply Chain Tree */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        {chain.map((root) => (
-          <NodeCard key={root.id} node={root} />
-        ))}
-      </div>
-    </div>
+    </AppShell>
   );
 }

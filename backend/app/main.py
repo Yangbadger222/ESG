@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.api.v1 import auth, suppliers, audits, reports, alerts
+from app.api.v1 import auth, suppliers, audits, reports, alerts, match, dashboard
 
 settings = get_settings()
 
@@ -26,6 +26,8 @@ app.include_router(suppliers.router, prefix="/api/v1/suppliers", tags=["Supplier
 app.include_router(audits.router, prefix="/api/v1/audits", tags=["Audits"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Compliance Alerts"])
+app.include_router(match.router, prefix="/api/v1/match", tags=["AI Matching"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
 
 
 @app.get("/health")
