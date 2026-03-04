@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
     OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4"
+    OPENAI_MODEL: str = "deepseek-chat"
+    OPENAI_BASE_URL: str = "https://api.deepseek.com"
 
     REPORT_OUTPUT_DIR: str = "./reports"
 

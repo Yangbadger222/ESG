@@ -1,4 +1,4 @@
-const API_BASE = "/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -31,9 +31,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
     throw new Error("Session expired");
   }
 
@@ -68,11 +65,11 @@ export const authApi = {
 export const supplierApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
-    return request<Record<string, unknown>[]>(`/suppliers${qs}`);
+    return request<Record<string, unknown>[]>(`/suppliers/${qs}`);
   },
   get: (id: number) => request<Record<string, unknown>>(`/suppliers/${id}`),
   create: (data: unknown) =>
-    request<Record<string, unknown>>("/suppliers", { method: "POST", body: JSON.stringify(data) }),
+    request<Record<string, unknown>>("/suppliers/", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: unknown) =>
     request<Record<string, unknown>>(`/suppliers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) =>
@@ -94,9 +91,9 @@ export const supplierApi = {
 
 // Audits
 export const auditApi = {
-  list: () => request<Record<string, unknown>[]>("/audits"),
+  list: () => request<Record<string, unknown>[]>("/audits/"),
   create: (data: unknown) =>
-    request<Record<string, unknown>>("/audits", { method: "POST", body: JSON.stringify(data) }),
+    request<Record<string, unknown>>("/audits/", { method: "POST", body: JSON.stringify(data) }),
   get: (id: number) => request<Record<string, unknown>>(`/audits/${id}`),
   run: (id: number) =>
     request<Record<string, unknown>>(`/audits/${id}/run`, { method: "POST" }),
@@ -106,7 +103,7 @@ export const auditApi = {
 export const reportApi = {
   generate: (auditId: number, reportType = "csrd") =>
     request<Record<string, unknown>>(`/reports/${auditId}/generate?report_type=${reportType}`, { method: "POST" }),
-  list: () => request<Record<string, unknown>[]>("/reports"),
+  list: () => request<Record<string, unknown>[]>("/reports/"),
   downloadUrl: (reportId: number) => `${API_BASE}/reports/${reportId}/download`,
 };
 
@@ -114,7 +111,7 @@ export const reportApi = {
 export const alertApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
-    return request<Record<string, unknown>[]>(`/alerts${qs}`);
+    return request<Record<string, unknown>[]>(`/alerts/${qs}`);
   },
   scan: () => request<{ new_alerts: number }>("/alerts/scan", { method: "POST" }),
   resolve: (id: number) =>
@@ -130,7 +127,7 @@ export const dashboardApi = {
 // AI Match
 export const matchApi = {
   match: (requirement: string) =>
-    request<Record<string, unknown>[]>("/match", {
+    request<Record<string, unknown>[]>("/match/", {
       method: "POST",
       body: JSON.stringify({ requirement }),
     }),

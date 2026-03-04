@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { isLoggedIn, clearToken } from "@/services/api";
 
 const navItems = [
@@ -17,22 +18,16 @@ const navItems = [
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
+  const [ready] = useState(() => isLoggedIn());
 
   useEffect(() => {
-    if (!isLoggedIn()) {
+    if (!ready) {
       router.replace("/login");
-    } else {
-      setReady(true);
     }
-  }, [router]);
+  }, [ready, router]);
 
   if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-400 text-sm">Loading...</div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -46,7 +41,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -61,7 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   {item.icon}
                 </span>
                 {item.label}
-              </a>
+              </Link>
             );
           })}
         </nav>
